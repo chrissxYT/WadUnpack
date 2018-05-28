@@ -14,6 +14,8 @@ namespace WadUnpack
 
         public static void Main(string[] args)
         {
+            SetWindowSize(70, 30);
+
             string file = args[0];
 		    data = File.ReadAllBytes(file);
 
@@ -30,9 +32,9 @@ namespace WadUnpack
             int dirEntries = read32();
             int dirOffset = read32();
 
-            WriteLine("File Size:         " + data.Length);
-            WriteLine("Directory Entries: " + dirEntries);
-            WriteLine("Directory Offset:  " + dirOffset);
+            WriteLine($"File Size:         {(data.Length < 1024 ? data.Length + "B" : data.Length < 1024*1024 ? (float)data.Length / 1024 + "KiB" : (float)data.Length / 1024 / 1024 + "MiB")}");
+            WriteLine($"Directory Entries: {(dirEntries < 1000 ? dirEntries + "E" : (float)dirEntries / 1000 + "kE")}");
+            WriteLine($"Directory Offset:  {dirOffset}");
 
             index = dirOffset;
 		    List<DirectoryEntry> dir = new List<DirectoryEntry>();
@@ -42,17 +44,28 @@ namespace WadUnpack
                 dir.Add(d);
 		    }
 
+            byte ct = 7;
+
 		    WriteLine("-----------------------------");
             string basedir = "unpacked_" + Path.GetFileNameWithoutExtension(file);
             Directory.CreateDirectory(basedir);
 		    WriteLine($@"Unpacking into {basedir}\...");
-		    foreach (DirectoryEntry d in dir)
+            WriteLine("-----------------------------");
+            foreach (DirectoryEntry d in dir)
             {
+                if(ct > 28)
+                {
+                    SetCursorPosition(0, 7);
+                    ct = 7;
+                }
                 if (d.type != 67)
                     continue;
 			    unpack_texture(d, basedir + "\\" + d.name + ".png");
+                ct++;
 		    }
-		    WriteLine("...Done.");
+		    WriteLine("...Done.                                                       ");
+            for (byte b = ct; b < 28; b++)
+                WriteLine("                                                       ");
             Read();
 	    }
 
@@ -80,7 +93,7 @@ namespace WadUnpack
 			    for(int y = 0; y < h; y++)
 				    img.SetPixel(x, y, clut[texture[x + (y * w)]]);
 
-		    WriteLine(dest);
+		    WriteLine(dest + "         ");
             img.Save(dest, ImageFormat.Png);
 	    }
 
