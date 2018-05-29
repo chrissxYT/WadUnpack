@@ -60,7 +60,8 @@ namespace WadUnpack
                 }
                 if (d.type != 67)
                     continue;
-			    unpack_texture(d, basedir + "\\" + d.name + ".png");
+                else
+                    unpack_texture(d, basedir + "\\" + d.name + ".png");
                 ct++;
 		    }
 		    WriteLine("...Done.                                                       ");
@@ -79,12 +80,12 @@ namespace WadUnpack
 
 		    int[] texture = new int[w * h];
             index = d.offset + offsets[0];
-		    for(int z=0; z < w * h; z++)
+		    for(int z = 0; z < w * h; z++)
                 texture[z] = read8();
 		
 		    index = d.offset + offsets[3] + ((w/8) * (h/8)) + 2;
 		    Color[] clut = new Color[256];
-		    for(int z=0; z < 256; z++)
+		    for(int z = 0; z < 256; z++)
                 clut[z] = Color.FromArgb(0xFF, read8(), read8(), read8());
 
 		    Bitmap img = new Bitmap(w, h, PixelFormat.Format32bppArgb);
@@ -99,10 +100,10 @@ namespace WadUnpack
 
 	    public static string read_string(int len)
         {
-            string r = "";
-            for (int z = 0; z < len; z++)
-                r += (char)read8();
-            return r.Trim();
+            string s = "";
+            for (int i = 0; i < len; i++)
+                s += (char)read8();
+            return s;
         }
 
         public static int read8() => data[index++] & 0xFF;
