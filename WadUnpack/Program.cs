@@ -76,11 +76,12 @@ namespace WadUnpack
             read_string(16);
 		    int w = read32();
 		    int h = read32();
+            int pixels = w * h;
 		    int[] offsets = new int[] { read32(), read32(), read32(), read32() };
 
-		    int[] texture = new int[w * h];
+		    int[] texture = new int[pixels];
             index = d.offset + offsets[0];
-		    for(int z = 0; z < w * h; z++)
+		    for(int z = 0; z < pixels; z++)
                 texture[z] = read8();
 		
 		    index = d.offset + offsets[3] + ((w/8) * (h/8)) + 2;
@@ -106,7 +107,7 @@ namespace WadUnpack
             return s;
         }
 
-        public static int read8() => data[index++] & 0xFF;
+        public static byte read8() => (byte)(data[index++] & 0xFF);
 
         public static int read32() => read8() | (read8() << 8) | (read8() << 16) | (read8() << 24);
     }
@@ -123,11 +124,11 @@ namespace WadUnpack
             offset = Program.read32();
             size = Program.read32();
             Program.read32();
-            type = (byte)Program.read8();
+            type = Program.read8();
             bool compression = Program.read8() != 0;
             Program.read8();
             Program.read8();
-            name = trim_and_win_file_esc(Program.read_string(16));
+            name = Program.read_string(16).Trim().Replace("<", "&lt;").Replace(">", "&rt;").Replace(":", "&dd;").Replace("\"", "&qt;").Replace("/", "&fs;").Replace("\\", "&bs;").Replace("|", "&vl;").Replace("?", "&qm;").Replace("*", "&sr;").Replace("\u0000", "");
             if (compression)
             {
                 WriteLine("Compressed textures are currently not supported.");
@@ -135,8 +136,6 @@ namespace WadUnpack
                 Environment.Exit(1);
             }
         }
-
-        public static string trim_and_win_file_esc(string s) => s.Trim().Replace("<", "&lt;").Replace(">", "&rt;").Replace(":", "&dd;").Replace("\"", "&qt;").Replace("/", "&fs;").Replace("\\", "&bs;").Replace("|", "&vl;").Replace("?", "&qm;").Replace("*", "&sr;").Replace("\u0000", "");
 
         public override string ToString() => $"{offset}\t{name} ({size} bytes)";
     }
