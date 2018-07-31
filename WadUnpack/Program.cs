@@ -9,49 +9,32 @@ namespace WadUnpack
 {
     public class Program
     {
-        static int index = 0;
-        static byte[] data;
-
         public static void Main(string[] args)
         {
             SetWindowSize(70, 30);
 
-            string file = args[0];
-		    data = File.ReadAllBytes(file);
+		    reader r = new reader(args[0]);
 
-            string m = read_string(4);
-		    if (m == "WAD3" || m == "WAD2")
-                WriteLine(m + " format");
-		    else
+            WriteLine($"File Size:         {r.format_size()}");
+            WriteLine($"Directory Entries: {r.format_entry_count()}");
+            WriteLine($"Directory Offset:  {r.dir_offset}");
+
+		    List<entry> dir = new List<entry>();
+
+            for (int z = 0; z < r.dir_entries; z++)
             {
-			    WriteLine("Not a WAD file.");
-                Read();
-			    Environment.Exit(1);
-		    }
-
-            int dirEntries = read32();
-            int dirOffset = read32();
-
-            WriteLine($"File Size:         {(data.Length < 1024 ? data.Length + "B" : data.Length < 1024*1024 ? (float)data.Length / 1024 + "KiB" : (float)data.Length / 1024 / 1024 + "MiB")}");
-            WriteLine($"Directory Entries: {(dirEntries < 1000 ? dirEntries + "E" : (float)dirEntries / 1000 + "kE")}");
-            WriteLine($"Directory Offset:  {dirOffset}");
-
-            index = dirOffset;
-		    List<DirectoryEntry> dir = new List<DirectoryEntry>();
-		    for(int z = 0; z < dirEntries; z++)
-            {
-		    	DirectoryEntry d = new DirectoryEntry();
+		    	entry d = new entry(r);
                 dir.Add(d);
 		    }
 
             byte ct = 7;
 
 		    WriteLine("-----------------------------");
-            string basedir = "unpacked_" + Path.GetFileNameWithoutExtension(file);
+            string basedir = "unpacked_" + Path.GetFileNameWithoutExtension(args[0]);
             Directory.CreateDirectory(basedir);
 		    WriteLine($@"Unpacking into {basedir}\...");
             WriteLine("-----------------------------");
-            foreach (DirectoryEntry d in dir)
+            foreach (entry d in dir)
             {
                 if(ct > 28)
                 {
@@ -61,33 +44,33 @@ namespace WadUnpack
                 if (d.type != 67)
                     continue;
                 else
-                    unpack_texture(d, basedir + "\\" + d.name + ".png");
+                    unpack_texture(r, d, basedir + "\\" + d.name + ".png");
                 ct++;
 		    }
-		    WriteLine("...Done.                                                       ");
+		    WriteLine("...Done.");
             for (byte b = ct; b < 28; b++)
-                WriteLine("                                                       ");
+                WriteLine("");
             Read();
 	    }
 
-	    static void unpack_texture(DirectoryEntry d, string dest)
+	    static void unpack_texture(reader r, entry d, string dest)
         {
-            index = d.offset;
-            read_string(16);
-		    int w = read32();
-		    int h = read32();
+            r.index = d.offset;
+            r.read_string(16);
+		    int w = r.read32();
+		    int h = r.read32();
             int pixels = w * h;
-		    int[] offsets = new int[] { read32(), read32(), read32(), read32() };
+		    int[] offsets = new int[] { r.read32(), r.read32(), r.read32(), r.read32() };
 
 		    int[] texture = new int[pixels];
-            index = d.offset + offsets[0];
+            r.index = d.offset + offsets[0];
 		    for(int z = 0; z < pixels; z++)
-                texture[z] = read8();
-		
-		    index = d.offset + offsets[3] + ((w/8) * (h/8)) + 2;
+                texture[z] = r.read8();
+
+            r.index = d.offset + offsets[3] + ((w/8) * (h/8)) + 2;
 		    Color[] clut = new Color[256];
 		    for(int z = 0; z < 256; z++)
-                clut[z] = Color.FromArgb(0xFF, read8(), read8(), read8());
+                clut[z] = Color.FromArgb(0xFF, r.read8(), r.read8(), r.read8());
 
 		    Bitmap img = new Bitmap(w, h, PixelFormat.Format32bppArgb);
 
@@ -98,8 +81,86 @@ namespace WadUnpack
 		    WriteLine(dest + "         ");
             img.Save(dest, ImageFormat.Png);
 	    }
+    }
 
-	    public static string read_string(int len)
+    class entry
+    {
+        public int offset;
+        public int size;
+        public byte type;
+        public string name;
+
+        public entry(reader r)
+        {
+            offset = r.read32();
+            size = r.read32();
+            r.read32();
+            type = r.read8();
+            
+            if (r.read8() != 0)
+            {
+                WriteLine("Compressed textures are not supported.");
+                Read();
+                Environment.Exit(1);
+            }
+
+            r.read8();
+            r.read8();
+            name = r.read_string(16).Trim()
+                .Replace("<", "&lt;")
+                .Replace(">", "&rt;")
+                .Replace(":", "&dd;")
+                .Replace("\"", "&qt;")
+                .Replace("/", "&fs;")
+                .Replace("\\", "&bs;")
+                .Replace("|", "&vl;")
+                .Replace("?", "&qm;")
+                .Replace("*", "&sr;")
+                .Replace("\u0000", "");
+        }
+
+        public override string ToString() => $"{offset}\t{name} ({size} bytes)";
+    }
+
+    class reader
+    {
+        public int index = 0;
+        byte[] data;
+        public int dir_entries;
+        public int dir_offset;
+
+        public reader(string file)
+        {
+            data = File.ReadAllBytes(file);
+
+            string m = read_string(4);
+
+            if (m == "WAD3" || m == "WAD2")
+            {
+                WriteLine(m + " format");
+            }
+            else
+            {
+                WriteLine("Not a WAD file.");
+                Read();
+                Environment.Exit(1);
+            }
+
+            dir_entries = read32();
+            dir_offset = read32();
+        }
+
+        public string format_size()
+        {
+            return (data.Length < 1024 ? data.Length + "B" : data.Length < 1024 * 1024 ? (float)data.Length / 1024 + "KiB" : (float)data.Length / 1024 / 1024 + "MiB");
+        }
+
+        public string format_entry_count()
+        {
+            return (dir_entries < 1000 ? dir_entries + "E" : (float)dir_entries / 1000 + "kE");
+        }
+
+        public string read_string(int len)
         {
             string s = "";
             for (int i = 0; i < len; i++)
@@ -107,36 +168,19 @@ namespace WadUnpack
             return s;
         }
 
-        public static byte read8() => (byte)(data[index++] & 0xFF);
-
-        public static int read32() => read8() | (read8() << 8) | (read8() << 16) | (read8() << 24);
-    }
-
-    class DirectoryEntry
-    {
-        public int offset;
-        public int size;
-        public byte type;
-        public string name;
-
-        public DirectoryEntry()
+        public byte read8()
         {
-            offset = Program.read32();
-            size = Program.read32();
-            Program.read32();
-            type = Program.read8();
-            bool compression = Program.read8() != 0;
-            Program.read8();
-            Program.read8();
-            name = Program.read_string(16).Trim().Replace("<", "&lt;").Replace(">", "&rt;").Replace(":", "&dd;").Replace("\"", "&qt;").Replace("/", "&fs;").Replace("\\", "&bs;").Replace("|", "&vl;").Replace("?", "&qm;").Replace("*", "&sr;").Replace("\u0000", "");
-            if (compression)
-            {
-                WriteLine("Compressed textures are currently not supported.");
-                Read();
-                Environment.Exit(1);
-            }
+            return data[index++];
         }
 
-        public override string ToString() => $"{offset}\t{name} ({size} bytes)";
+        public int read32()
+        {
+            return read8() | (read8() << 8) | (read8() << 16) | (read8() << 24);
+        }
+
+        public void set_index_to_dir_offset()
+        {
+            index = dir_offset;
+        }
     }
 }
