@@ -60,8 +60,7 @@ namespace WadUnpack
 		    int h = r.read32();
             int pixels = w * h;
             int offset1 = r.read32();
-            r.skip32();
-            r.skip32();
+            r.index += 8;
             int offset4 = r.read32();
 
 		    byte[] texture = new byte[pixels];
