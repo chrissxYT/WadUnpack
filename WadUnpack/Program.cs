@@ -17,11 +17,11 @@ namespace WadUnpack
 
             WriteLine($"File Size:         {r.format_size()}");
             WriteLine($"Directory Entries: {r.format_entry_count()}");
-            WriteLine($"Directory Offset:  {r.dir_offset}");
+            WriteLine($"Directory Offset:  {r.offset}");
 
 		    List<entry> dir = new List<entry>();
 
-            for (int z = 0; z < r.dir_entries; z++)
+            for (int z = 0; z < r.entries; z++)
             {
 		    	entry d = new entry(r);
                 dir.Add(d);
@@ -126,8 +126,8 @@ namespace WadUnpack
     {
         public int index = 0;
         byte[] data;
-        public int dir_entries;
-        public int dir_offset;
+        public int entries;
+        public int offset;
 
         public reader(string file)
         {
@@ -146,18 +146,19 @@ namespace WadUnpack
                 Environment.Exit(1);
             }
 
-            dir_entries = read32();
-            dir_offset = read32();
+            entries = read32();
+            offset = read32();
         }
 
         public string format_size()
         {
-            return (data.Length < 1024 ? data.Length + "B" : data.Length < 1024 * 1024 ? (float)data.Length / 1024 + "KiB" : (float)data.Length / 1024 / 1024 + "MiB");
+            long l = data.Length;
+            return (l < 1000 ? l + "B" : l < 1000000 ? (l / 1000F).ToString("F") + "kB" : (l / 1000000F).ToString("F") + "MB");
         }
 
         public string format_entry_count()
         {
-            return (dir_entries < 1000 ? dir_entries + "E" : (float)dir_entries / 1000 + "kE");
+            return (entries < 1000 ? entries + "E" : (float)entries / 1000 + "kE");
         }
 
         public string read_string(int len)
@@ -176,11 +177,6 @@ namespace WadUnpack
         public int read32()
         {
             return read8() | (read8() << 8) | (read8() << 16) | (read8() << 24);
-        }
-
-        public void set_index_to_dir_offset()
-        {
-            index = dir_offset;
         }
     }
 }
