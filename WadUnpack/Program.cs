@@ -13,43 +13,42 @@ namespace WadUnpack
         {
             SetWindowSize(70, 30);
 
-		    reader r = new reader(args[0]);
+            string wadfile = args[0];
+            string basedir = "unpacked_" + Path.GetFileNameWithoutExtension(wadfile);
+		    reader r = new reader(wadfile);
+            Directory.CreateDirectory(basedir);
 
-            WriteLine($"File Size:         {r.format_size()}");
-            WriteLine($"Directory Entries: {r.format_entry_count()}");
-            WriteLine($"Directory Offset:  {r.offset}");
+            WriteLine("File Size:         " + r.format_size());
+            WriteLine("Directory Entries: " + r.format_entry_count());
+            WriteLine("Directory Offset:  " + r.offset);
 
 		    List<entry> dir = new List<entry>();
 
-            for (int z = 0; z < r.entries; z++)
-            {
-		    	entry d = new entry(r);
-                dir.Add(d);
-		    }
+            for (int i = 0; i < r.entries; i++)
+                dir.Add(new entry(r));
 
-            byte ct = 7;
+            int i = 7;
 
 		    WriteLine("-----------------------------");
-            string basedir = "unpacked_" + Path.GetFileNameWithoutExtension(args[0]);
-            Directory.CreateDirectory(basedir);
 		    WriteLine($@"Unpacking into {basedir}\...");
             WriteLine("-----------------------------");
-            foreach (entry d in dir)
+            foreach (entry e in dir)
             {
-                if(ct > 28)
+                if(i > 28)
                 {
                     SetCursorPosition(0, 7);
-                    ct = 7;
+                    i = 7;
                 }
-                if (d.type != 67)
-                    continue;
+                int j = e.type;
+                if (j != 67)
+                    Console.WriteLine($"Cannot unpack an entry of type {j}.");
                 else
-                    unpack_texture(r, d, basedir + "\\" + d.name + ".png");
-                ct++;
+                    unpack_texture(r, e, Path.Combine(basedir, e.name + ".png"));
+                i++;
 		    }
 		    WriteLine("...Done.");
-            for (byte b = ct; b < 28; b++)
-                WriteLine("");
+            for (; i < 28; i++)
+                WriteLine();
             Read();
 	    }
 
@@ -60,23 +59,26 @@ namespace WadUnpack
 		    int w = r.read32();
 		    int h = r.read32();
             int pixels = w * h;
-		    int[] offsets = new int[] { r.read32(), r.read32(), r.read32(), r.read32() };
+            int offset1 = r.read32();
+            r.skip32();
+            r.skip32();
+            int offset4 = r.read32();
 
-		    int[] texture = new int[pixels];
-            r.index = d.offset + offsets[0];
-		    for(int z = 0; z < pixels; z++)
-                texture[z] = r.read8();
+		    byte[] texture = new byte[pixels];
+            r.index = d.offset + offset1;
+		    for(int i = 0; i < pixels; i++)
+                texture[i] = r.read8();
 
-            r.index = d.offset + offsets[3] + ((w/8) * (h/8)) + 2;
+            r.index = d.offset + offset4 + pixels / 64 + 2;
 		    Color[] clut = new Color[256];
-		    for(int z = 0; z < 256; z++)
-                clut[z] = Color.FromArgb(0xFF, r.read8(), r.read8(), r.read8());
+		    for(int i = 0; i < 256; i++)
+                clut[i] = r.readc();
 
-		    Bitmap img = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+		    Bitmap img = new Bitmap(w, h);
 
 		    for(int x = 0; x < w; x++)
 			    for(int y = 0; y < h; y++)
-				    img.SetPixel(x, y, clut[texture[x + (y * w)]]);
+				    img.SetPixel(x, y, clut[texture[x + y * w]]);
 
 		    WriteLine(dest + "         ");
             img.Save(dest, ImageFormat.Png);
@@ -87,14 +89,14 @@ namespace WadUnpack
     {
         public int offset;
         public int size;
-        public byte type;
+        public int type;
         public string name;
 
         public entry(reader r)
         {
             offset = r.read32();
             size = r.read32();
-            r.read32();
+            r.index += 4;
             type = r.read8();
             
             if (r.read8() != 0)
@@ -104,19 +106,9 @@ namespace WadUnpack
                 Environment.Exit(1);
             }
 
-            r.read8();
-            r.read8();
-            name = r.read_string(16).Trim()
-                .Replace("<", "&lt;")
-                .Replace(">", "&rt;")
-                .Replace(":", "&dd;")
-                .Replace("\"", "&qt;")
-                .Replace("/", "&fs;")
-                .Replace("\\", "&bs;")
-                .Replace("|", "&vl;")
-                .Replace("?", "&qm;")
-                .Replace("*", "&sr;")
-                .Replace("\u0000", "");
+            r.index++;
+            r.index++;
+            name = r.read_string(16).Replace("\0", "");
         }
 
         public override string ToString() => $"{offset}\t{name} ({size} bytes)";
@@ -136,9 +128,7 @@ namespace WadUnpack
             string m = read_string(4);
 
             if (m == "WAD3" || m == "WAD2")
-            {
                 WriteLine(m + " format");
-            }
             else
             {
                 WriteLine("Not a WAD file.");
@@ -165,7 +155,7 @@ namespace WadUnpack
         {
             string s = "";
             for (int i = 0; i < len; i++)
-                s += (char)read8();
+                s += (char)data[index++];
             return s;
         }
 
@@ -176,7 +166,12 @@ namespace WadUnpack
 
         public int read32()
         {
-            return read8() | (read8() << 8) | (read8() << 16) | (read8() << 24);
+            return data[index++] | (data[index++] << 8) | (data[index++] << 16) | (data[index++] << 24);
+        }
+
+        public Color readc()
+        {
+            return Color.FromArgb(data[index++], data[index++], data[index++]);
         }
     }
 }
