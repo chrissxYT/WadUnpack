@@ -1,0 +1,7 @@
+C:\Users\chrissicx\source\repos\WadUnpack\WadUnpack\bin\x64\Debug\WadUnpack.exe.config
+C:\Users\chrissicx\source\repos\WadUnpack\WadUnpack\bin\x64\Debug\WadUnpack.exe
+C:\Users\chrissicx\source\repos\WadUnpack\WadUnpack\bin\x64\Debug\WadUnpack.pdb
+C:\Users\chrissicx\source\repos\WadUnpack\WadUnpack\obj\x64\Debug\WadUnpack.csprojAssemblyReference.cache
+C:\Users\chrissicx\source\repos\WadUnpack\WadUnpack\obj\x64\Debug\WadUnpack.csproj.CoreCompileInputs.cache
+C:\Users\chrissicx\source\repos\WadUnpack\WadUnpack\obj\x64\Debug\WadUnpack.exe
+C:\Users\chrissicx\source\repos\WadUnpack\WadUnpack\obj\x64\Debug\WadUnpack.pdb

@@ -7,6 +7,7 @@ using static System.IO.Directory;
 using static System.IO.File;
 using static System.Environment;
 using static System.Drawing.Color;
+using System.Text;
 
 namespace WadUnpack
 {
@@ -16,14 +17,24 @@ namespace WadUnpack
         {
             SetWindowSize(70, 30);
 
-            string wadfile = args[0];
+            string wadfile;
+            if (args.Length > 0)
+                wadfile = args[0];
+            else
+            {
+                Write("WAD file: ");
+                wadfile = ReadLine();
+            }
+
             string basedir = "unpacked_" + GetFileNameWithoutExtension(wadfile);
 		    reader r = new reader(wadfile);
             CreateDirectory(basedir);
 
-            WriteLine("File Size:         " + r.format_size());
-            WriteLine("Directory Entries: " + r.format_entry_count());
+#if DEBUG
+            WriteLine("File Size:         " + r.size());
+            WriteLine("Directory Entries: " + r.entry_count());
             WriteLine("Directory Offset:  " + r.offset);
+#endif
 
 		    List<entry> dir = new List<entry>();
 
@@ -44,7 +55,11 @@ namespace WadUnpack
                 }
                 int j = e.type;
                 if (j != 67)
-                    WriteLine($"Cannot unpack an entry of type {j}.");
+#if DEBUG
+                    WriteLine($"Cannot unpack an entry of type {hex(j, 2)}, skipping {{{e.dbgstr()}}}.");
+#else
+                    ;
+#endif
                 else
                     unpack_texture(r, e, Combine(basedir, e.name + ".png"));
                 i++;
@@ -55,10 +70,14 @@ namespace WadUnpack
             Read();
 	    }
 
+        static string hex(int i, int d)
+        {
+            return i.ToString("x" + d);
+        }
+
 	    static void unpack_texture(reader r, entry d, string dest)
         {
-            r.seek(d.offset);
-            r.reads(16);
+            r.seek(d.offset + 16);
 		    int w = r.read32();
 		    int h = r.read32();
             int pixels = w * h;
@@ -82,9 +101,14 @@ namespace WadUnpack
 			    for (int y = 0; y < h; y++)
 				    img.SetPixel(x, y, clut[texture[x + y * w]]);
 
-		    WriteLine(dest + "\t");
+		    WriteLine(truncate(dest + "                                          ", 69));
             img.Save(dest, ImageFormat.Png);
 	    }
+
+        static string truncate(string s, int len)
+        {
+            return s == null || s.Length < len ? s : s.Substring(0, len);
+        }
     }
 
     class entry
@@ -105,16 +129,31 @@ namespace WadUnpack
             
             if (compression != 0)
             {
-                WriteLine($"Compressed textures (compression: {compression}) are not supported.");
+                WriteLine($"Compressed textures (compression: {compression.ToString("x2")}) are not supported.");
                 Read();
                 Exit(1);
             }
 
             r.skip(2);
-            name = r.reads(16).Replace("\0", "");
+            name = cutofffromfirst(r.reads(16), '\0');
+        }
+
+        static string cutofffromfirst(string s, char c)
+        {
+            return s.Substring(0, s.IndexOf(c));
         }
 
         public override string ToString() => $"{offset}\t{name} ({size} bytes)";
+
+        public string dbgstr()
+        {
+            return hex(offset, 8) + hex(size, 8) + hex(type, 2) + hex(compression, 2) + name;
+        }
+
+        static string hex(int i, int d)
+        {
+            return i.ToString("x" + d);
+        }
     }
 
     class reader
@@ -134,7 +173,7 @@ namespace WadUnpack
                 WriteLine(m + " format");
             else
             {
-                WriteLine("Not a WAD file.");
+                Error.WriteLine("Not a WAD file.");
                 Exit(1);
             }
 
@@ -142,29 +181,49 @@ namespace WadUnpack
             offset = read32();
         }
 
-        public string format_size()
+        public string size()
         {
             int l = data.Length;
             return l < 1000 ? l + "B" : l < 1000000 ? (l / 1000D).ToString("F2") + "kB" : (l / 1000000D).ToString("F2") + "MB";
         }
 
-        public string format_entry_count()
+        public string entry_count()
         {
             return entries < 1000 ? entries + "E" : (entries / 1000D).ToString("F2") + "kE";
         }
 
-        //not good for long strings because it doesnt use stringbuilder
         public string reads(int len)
         {
-            string s = "";
-            for (int i = 0; i < len; i++)
-                s += (char)read8();
-            return s;
+            if(len > 10)
+            {
+                StringBuilder s = new StringBuilder();
+                for (int i = 0; i < len; i++)
+                    s.Append((char)read8());
+                return s.ToString();
+            }
+            else
+            {
+                string s = "";
+                for (int i = 0; i < len; i++)
+                    s += (char)read8();
+                return s;
+            }
+        }
+
+        public string readsz()
+        {
+            byte i;
+            StringBuilder s = new StringBuilder();
+            while ((i = data[index++]) != 0)
+            {
+                s.Append((char)i);
+            }
+            return s.ToString();
         }
 
         public int read8()
         {
-            return index < data.LongLength ? read8() : -1;
+            return index < data.LongLength ? data[index++] : -1;
         }
 
         public int read32()
